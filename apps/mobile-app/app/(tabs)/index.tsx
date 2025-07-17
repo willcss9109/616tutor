@@ -1,75 +1,181 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { API, handleApiError } from '@/api';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import { supabase } from '@/lib/supabase';
+import UserList from '@/components/UserList';
+import { DbUser } from '@/api/userApiClient';
+import {User} from '@supabase/supabase-js'
 
 export default function HomeScreen() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [users, setUsers] = useState<DbUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    loadCurrentUserData();
+    fetchUsers();
+  }, []);
+
+  const loadCurrentUserData = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session?.user) {
+        setCurrentUser(session.user);
+      } else {
+        router.replace('/login');
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+      router.replace('/login');
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const allUsers = await API.user.getAllUsers();
+      setUsers(allUsers);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      setError('Failed to load users');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUserPress = (user: DbUser) => {
+    // For now, show an alert. Later this will navigate to chat screen
+    const displayName = user.id;
+    Alert.alert(
+      'Start Chat',
+      `Start a conversation with ${displayName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Start Chat',
+          onPress: () => {
+            // TODO: Navigate to chat screen
+            Alert.alert('Coming Soon', 'Chat functionality will be implemented next!');
+          }
+        },
+      ]
+    );
+  };
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Logout', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase.auth.signOut();
+              if (error) {
+                Alert.alert('Error', 'Failed to logout');
+              } else {
+                router.replace('/login');
+              }
+            } catch (error) {
+              console.error('Logout error:', error);
+              Alert.alert('Error', 'Failed to logout');
+            }
+          }
+        },
+      ]
+    );
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <View style={styles.headerContent}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.title}>616 Tutor</Text>
+            <Text style={styles.subtitle}>
+              Welcome, {currentUser?.email}!
+            </Text>
+            <Text style={styles.description}>
+              Choose someone to start a conversation with:
+            </Text>
+          </View>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutButtonText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      
+      <View style={styles.content}>
+        <UserList
+          users={users}
+          loading={loading}
+          error={error}
+          onUserPress={handleUserPress}
+          onRefresh={fetchUsers}
         />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
   },
-  stepContainer: {
-    gap: 8,
+  header: {
+    backgroundColor: 'white',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#6B7280',
     marginBottom: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  description: {
+    fontSize: 14,
+    color: '#9CA3AF',
+  },
+  logoutButton: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  logoutButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  content: {
+    flex: 1,
   },
 });

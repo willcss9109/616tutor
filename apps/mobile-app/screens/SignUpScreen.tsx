@@ -12,21 +12,19 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@/hooks/useAuth';
+import { API, handleApiError } from '@/api';
+import { signInWithGoogleExpo } from '@/lib/expoGoogleAuth';
 import { validateSignUpForm } from '@/utils/validation';
 
 export default function SignUpScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [fullName, setFullName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { signUp } = useAuth();
 
   const handleSignUp = async () => {
     // Validate all fields
-    const validation = validateSignUpForm(fullName, email, password, confirmPassword);
+    const validation = validateSignUpForm(email, password);
     if (!validation.isValid) {
       Alert.alert('Error', validation.message || 'Please check your input');
       return;
@@ -34,14 +32,15 @@ export default function SignUpScreen() {
 
     setIsLoading(true);
     try {
-      const { data, error } = await signUp(email, password);
+      const response = await API.auth.signUp({
+        email,
+        password,
+      });
       
-      if (error) {
-        Alert.alert('Error', error.message);
-      } else if (data.user) {
+      if (response.success) {
         Alert.alert(
           'Success', 
-          'Account created successfully! Please check your email to verify your account.',
+          response.message,
           [
             {
               text: 'OK',
@@ -49,14 +48,43 @@ export default function SignUpScreen() {
             },
           ]
         );
+      } else {
+        Alert.alert('Error', response.message || 'Failed to create account');
       }
     } catch (error) {
-      console.error('Sign up error:', error);
-      Alert.alert('Error', 'Failed to create account. Please try again.');
+      handleApiError(error, 'Failed to create account. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
+
+  // const handleGoogleSignUp = async () => {
+  //   setIsLoading(true);
+  //   try {
+  //     const { data, error } = await signInWithGoogleExpo();
+  //
+  //     if (error) {
+  //       Alert.alert('Error', error.message || 'Google sign-up failed');
+  //     } else if (data?.session) {
+  //       // Successfully authenticated, navigate to main app
+  //       Alert.alert(
+  //         'Success',
+  //         'Account created successfully with Google!',
+  //         [
+  //           {
+  //             text: 'OK',
+  //             onPress: () => router.push('/(tabs)'),
+  //           },
+  //         ]
+  //       );
+  //     }
+  //   } catch (error) {
+  //     console.error('Google Sign-Up error:', error);
+  //     Alert.alert('Error', 'Google sign-up failed. Please try again.');
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
   return (
     <KeyboardAvoidingView
@@ -74,17 +102,6 @@ export default function SignUpScreen() {
 
           {/* Sign Up Form */}
           <View style={styles.form}>
-            {/* Full Name Input */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Full Name</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your full name"
-                value={fullName}
-                onChangeText={setFullName}
-                autoCapitalize="words"
-              />
-            </View>
 
             {/* Email Input */}
             <View style={styles.inputContainer}>
@@ -113,18 +130,6 @@ export default function SignUpScreen() {
               <Text style={styles.passwordHint}>Must be at least 6 characters</Text>
             </View>
 
-            {/* Confirm Password Input */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Confirm Password</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Confirm your password"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry
-              />
-            </View>
-
             {/* Sign Up Button */}
             <TouchableOpacity
               style={[styles.signUpButton, isLoading && styles.signUpButtonDisabled]}
@@ -135,6 +140,24 @@ export default function SignUpScreen() {
                 {isLoading ? 'Creating Account...' : 'Sign Up'}
               </Text>
             </TouchableOpacity>
+
+            {/*/!* Divider *!/*/}
+            {/*<View style={styles.divider}>*/}
+            {/*  <View style={styles.dividerLine} />*/}
+            {/*  <Text style={styles.dividerText}>or</Text>*/}
+            {/*  <View style={styles.dividerLine} />*/}
+            {/*</View>*/}
+
+            {/*/!* Google Sign-Up Button *!/*/}
+            {/*<TouchableOpacity*/}
+            {/*  style={[styles.googleButton, isLoading && styles.googleButtonDisabled]}*/}
+            {/*  onPress={handleGoogleSignUp}*/}
+            {/*  disabled={isLoading}*/}
+            {/*>*/}
+            {/*  <Text style={styles.googleButtonText}>*/}
+            {/*    {isLoading ? 'Creating Account...' : '🔍 Continue with Google'}*/}
+            {/*  </Text>*/}
+            {/*</TouchableOpacity>*/}
           </View>
 
           {/* Login Link */}
@@ -227,5 +250,46 @@ const styles = StyleSheet.create({
   loginLink: {
     color: '#2563EB',
     fontWeight: '600',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E5E7EB',
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    color: '#6B7280',
+    fontSize: 14,
+  },
+  googleButton: {
+    width: '100%',
+    padding: 16,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  googleButtonDisabled: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#D1D5DB',
+  },
+  googleButtonText: {
+    color: '#374151',
+    fontWeight: '600',
+    fontSize: 16,
   },
 });

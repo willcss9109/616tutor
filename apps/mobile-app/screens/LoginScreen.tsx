@@ -12,15 +12,19 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
 import { validateLoginForm, validateEmail } from '@/utils/validation';
+import {
+  GoogleSignin,
+  GoogleSigninButton,
+  statusCodes,
+} from '@react-native-google-signin/google-signin'
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { signIn, resetPassword } = useAuth();
 
   const handleLogin = async () => {
     const validation = validateLoginForm(email, password);
@@ -31,8 +35,13 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     try {
-      const { data, error } = await signIn(email, password);
-      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      console.log(data);
+
       if (error) {
         Alert.alert('Error', error.message);
       } else if (data.user) {
@@ -55,7 +64,7 @@ export default function LoginScreen() {
     }
 
     try {
-      const { error } = await resetPassword(email);
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
       if (error) {
         Alert.alert('Error', error.message);
       } else {
@@ -64,6 +73,40 @@ export default function LoginScreen() {
     } catch (error) {
       console.error('Reset password error:', error);
       Alert.alert('Error', 'Failed to send reset email. Please try again.');
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    GoogleSignin.configure({
+      webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID, // client ID of type WEB for your server. Required to get the `idToken` on the user object, and for offline access.
+      scopes: ['https://www.googleapis.com/auth/drive.readonly']
+    });
+    try {
+      await GoogleSignin.hasPlayServices()
+      const userInfo = await GoogleSignin.signIn()
+      if (userInfo?.data?.idToken) {
+        const { data, error } = await supabase.auth.signInWithIdToken({
+          provider: 'google',
+          token: userInfo.data.idToken,
+        })
+        console.log(error, data)
+      } else {
+        throw new Error('no ID token present!')
+      }
+    } catch (error: any) {
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        // user cancelled the login flow
+        console.log('User cancelled Google Sign-In:', error);
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        // operation (e.g. sign in) is in progress already
+        console.log('Google Sign-In is already in progress:', error);
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        // play services not available or outdated
+        Alert.alert('Error', 'Google Play Services are not available. Please update or install them.');
+      } else {
+        // some other error happened
+        console.error('Google Sign-In Error:', error);
+      }
     }
   };
 
@@ -124,6 +167,22 @@ export default function LoginScreen() {
                 {isLoading ? 'Signing In...' : 'Sign In'}
               </Text>
             </TouchableOpacity>
+
+            {/* Divider */}
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Google Sign-In Button */}
+            <GoogleSigninButton
+                size={GoogleSigninButton.Size.Wide}
+                color={GoogleSigninButton.Color.Dark}
+              onPress={handleGoogleSignIn}
+              disabled={isLoading}
+            >
+            </GoogleSigninButton>
           </View>
 
           {/* Sign Up Link */}
@@ -216,5 +275,46 @@ const styles = StyleSheet.create({
   signUpLink: {
     color: '#2563EB',
     fontWeight: '600',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E5E7EB',
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    color: '#6B7280',
+    fontSize: 14,
+  },
+  googleButton: {
+    width: '100%',
+    padding: 16,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  googleButtonDisabled: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#D1D5DB',
+  },
+  googleButtonText: {
+    color: '#374151',
+    fontWeight: '600',
+    fontSize: 16,
   },
 });

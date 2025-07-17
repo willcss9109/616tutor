@@ -67,15 +67,9 @@ export const validateLoginForm = (email: string, password: string): ValidationRe
 };
 
 export const validateSignUpForm = (
-  fullName: string,
   email: string,
   password: string,
-  confirmPassword: string
 ): ValidationResult => {
-  const nameValidation = validateFullName(fullName);
-  if (!nameValidation.isValid) {
-    return nameValidation;
-  }
   
   const emailValidation = validateEmail(email);
   if (!emailValidation.isValid) {
@@ -85,11 +79,6 @@ export const validateSignUpForm = (
   const passwordValidation = validatePassword(password);
   if (!passwordValidation.isValid) {
     return passwordValidation;
-  }
-  
-  const confirmPasswordValidation = validatePasswordConfirmation(password, confirmPassword);
-  if (!confirmPasswordValidation.isValid) {
-    return confirmPasswordValidation;
   }
   
   return { isValid: true };

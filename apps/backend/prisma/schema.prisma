@@ -1,0 +1,93 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// User table - extends auth.users with additional data
+model User {
+  id        String   @id @db.Uuid // References auth.users.id
+  fullName  String?
+  avatarUrl String?
+  role      UserRole @default(STUDENT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  sentMessages Message[]   @relation("SentMessages")
+  chatRooms    ChatRoom[]
+
+  @@map("users")
+}
+
+// Chat rooms for conversations
+model ChatRoom {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String?
+  isGroup      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastActivity DateTime @default(now())
+
+  // Relations
+  messages    Message[]
+  participants User[]
+
+  @@map("chat_rooms")
+}
+
+// Messages table with AI moderation
+// Note: No receiverId field - recipients are determined by chatRoom.participants minus sender
+// This design supports both 1-on-1 and group chats seamlessly
+model Message {
+  id        String    @id @default(uuid()) @db.Uuid
+  content   String
+  isValid   Boolean   @default(false)
+  isAI      Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  readAt    DateTime?
+
+  // Foreign keys - UUIDs referencing auth.users.id
+  senderId   String @db.Uuid
+  chatRoomId String @db.Uuid
+
+  // Relations
+  sender   User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+
+  // AI moderation data
+  moderationResult ModerationResult?
+
+  @@map("messages")
+}
+
+// AI moderation results
+model ModerationResult {
+  id        String   @id @default(uuid()) @db.Uuid
+  messageId String   @unique @db.Uuid
+  isValid   Boolean
+  reason    String?
+  confidence Float?
+  flaggedWords String[]
+  createdAt DateTime @default(now())
+
+  // Relations
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@map("moderation_results")
+}
+
+// Enum for user roles
+enum UserRole {
+  STUDENT
+  TUTOR
+  ADMIN
+}
