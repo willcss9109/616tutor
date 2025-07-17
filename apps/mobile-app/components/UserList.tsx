@@ -6,12 +6,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import {DbUser} from "@/api/userApiClient";
 
 interface UserListProps {
-  users: User[];
+  users: DbUser[];
   loading: boolean;
   error: string | null;
   onUserPress: (user: DbUser) => void;

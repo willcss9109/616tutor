@@ -18,15 +18,12 @@ export class AuthService {
       const supabase = this.supabaseService.getServiceClient();
       
       // First, create the user with admin API
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
         email,
         password,
       });
 
       if (authError) {
-        if (authError.message.includes('already registered')) {
-          throw new ConflictException('User already exists with this email');
-        }
         throw new BadRequestException(authError.message);
       }
 
@@ -34,10 +31,20 @@ export class AuthService {
         throw new BadRequestException('Failed to create user');
       }
 
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+      })
+
+      if( error) {
+        throw new BadRequestException('Failed to send confirmation email: ' + error.message);
+      }
+
       // Create user profile in our database
       const userProfile = await this.prisma.user.create({
         data: {
           id: authData.user.id,
+          email,
           role: 'STUDENT',
         },
       });

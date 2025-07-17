@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { API, handleApiError } from '@/api';
+import { API } from '@/api';
 
 import { supabase } from '@/lib/supabase';
 import UserList from '@/components/UserList';
@@ -16,12 +16,7 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  useEffect(() => {
-    loadCurrentUserData();
-    fetchUsers();
-  }, []);
-
-  const loadCurrentUserData = async () => {
+  const loadCurrentUserData = useCallback(async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
 
@@ -34,7 +29,7 @@ export default function HomeScreen() {
       console.error('Error loading user data:', error);
       router.replace('/login');
     }
-  };
+  }, [router]);
 
   const fetchUsers = async () => {
     try {
@@ -50,8 +45,12 @@ export default function HomeScreen() {
     }
   };
 
+  useEffect(() => {
+    loadCurrentUserData();
+    fetchUsers();
+  }, [loadCurrentUserData]);
+
   const handleUserPress = (user: DbUser) => {
-    // For now, show an alert. Later this will navigate to chat screen
     const displayName = user.id;
     Alert.alert(
       'Start Chat',
@@ -61,8 +60,11 @@ export default function HomeScreen() {
         {
           text: 'Start Chat',
           onPress: () => {
-            // TODO: Navigate to chat screen
-            Alert.alert('Coming Soon', 'Chat functionality will be implemented next!');
+            // Navigate to chat screen with user data
+            router.push({
+              pathname: '/chat',
+              params: { user: JSON.stringify(user) }
+            });
           }
         },
       ]
